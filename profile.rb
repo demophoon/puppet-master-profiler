@@ -10,6 +10,7 @@
 
 require 'yaml'
 require 'pp'
+require 'date'
 
 # Helper Functions
 
@@ -86,9 +87,9 @@ def main profile_log
   puts "    - Puppet Master profile data if applicable"
   puts "    - Estimated Managed Node Count (using number of certs)"
   puts
-  if !continue_or_exit("Do you wish to continue and have the script generate a #{profile_output_file} file? ", "y", "y")
-    abort("Script canceled by user.")
-  end
+  #if !continue_or_exit("Do you wish to continue and have the script generate a #{profile_output_file} file? ", "y", "y")
+  #  abort("Script canceled by user.")
+  #end
   puts
   puts "--------------------------------------------------"
 
@@ -100,13 +101,34 @@ def main profile_log
   if !File.exist?(profile_log)
     abort("File '#{profile_log}' does not exist.")
   end
+  transactions = {}
   lines = []
   File.open(profile_log).each_line do |line|
-    if line =~ /PROFILE/
-      lines.push(line)
+    #if match = /(.*) Puppet \(debug\): PROFILE \[(.*)\] (.*): took (.*) seconds/.match(line)
+    if match = /(.*) Puppet \(debug\): PROFILE \[(.*)\] (.*): took (.*) seconds/.match(line)
+      puts "matches: #{match.captures}"
+      date = DateTime.strptime(match[1], '%Y-%m-%d %H:%M:%S %z').to_time.utc.to_i
+      transaction_id = match[2]
+      action = match[3]
+      duration = match[4]
+      if !trans = transactions[transaction_id]
+        transactions[transaction_id] = {
+          'duration' => duration,
+          'start' => date,
+          'end' => date,
+          'actions' => [],
+        }
+        trans = transactions[transaction_id]
+      end
+      if date < trans['start']
+        trans['start'] = date
+      elsif date > trans['end']
+        trans['end'] = date
+      end
+      trans['actions'].push(action)
     end
   end
-  answers["profile_data"] = lines.join("\n")
+  answers["profile_data"] = transactions
 
   # Gather system facts
 
